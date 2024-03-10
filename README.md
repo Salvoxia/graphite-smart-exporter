@@ -1,6 +1,6 @@
 # Graphite S.M.A.R.T. Exporter
 
-_Monitors drive's S.M.A.R.T. attributes and periodically sends them to a Graphite compatible server as tagged metrics_
+_Monitors drive S.M.A.R.T. attributes and periodically sends them to a Graphite compatible server as tagged metrics_
 
 This script was conceived to be an addon to [TrueNAS's](https://www.truenas.com/) own metrics system using [Graphite](https://graphiteapp.org/). The goal of this script was to run out-of-the-box on a TrueNAS SCALE and provide detailed S.M.A.R.T. metrics for all S.M.A.R.T. capable devices in the system.  
 
@@ -21,6 +21,7 @@ Even though this script was developed with TrueNAS SCALE in mind, and this docum
 
 Tested on:
   - TrueNAS SCALE 23.10.1
+  - Debian 12.4 Bookworm 
 
 Might/should work on TrueNAS CORE, test results are welcome!
 
