@@ -1,0 +1,40 @@
+{
+    "json_format_version": [
+        1,
+        0
+    ],
+    "smartctl": {
+        "version": [
+            7,
+            3
+        ],
+        "svn_revision": "5338",
+        "platform_info": "x86_64-linux-6.1.63-production+truenas",
+        "build_info": "(local build)",
+        "argv": [
+            "smartctl",
+            "--json=c",
+            "-a",
+            "-n",
+            "standby",
+            "/dev/sdj"
+        ],
+        "messages": [
+            {
+                "string": "Device is in STANDBY mode, exit(2)",
+                "severity": "information"
+            }
+        ],
+        "exit_status": 2
+    },
+    "local_time": {
+        "time_t": 1708982317,
+        "asctime": "Mon Feb 26 22:18:37 2024 CET"
+    },
+    "device": {
+        "name": "/dev/sdj",
+        "info_name": "/dev/sdj [SAT]",
+        "type": "sat",
+        "protocol": "ATA"
+    }
+}
