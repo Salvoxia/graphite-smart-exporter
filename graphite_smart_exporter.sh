@@ -243,7 +243,7 @@ function get_smart_metrics() {
     if [ "$exit_code" == "standby" ]; then
         smart_power_status=0
     fi
-    local smart_power_status_metric=$(echo "${SMART_POWER_STATUS_METRIC_NAME};serial_number={$serial_number}${METRIC_NAME_VALUE_DELIMITER}${smart_power_status}")
+    local smart_power_status_metric=$(echo "${SMART_POWER_STATUS_METRIC_NAME};serial_number=${serial_number}${METRIC_NAME_VALUE_DELIMITER}${smart_power_status}")
     disk_metrics="${smart_power_status_metric} ${disk_metrics}"
 
     # Exit status between 1 and 7 indicate either Standby or an hard error
