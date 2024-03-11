@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.0.0
+VERSION=1.1.0
 DESTINATION=                                # The destination where the Graphite server is reachable
 PORT=2003                                   # The port the Graphite server listens on for the plaintext protocol
 FREQUENCY=300                               # The frequency data is gathered and sent to graphite in
@@ -9,6 +9,7 @@ QUIET=0                                     # Does not write any output if set
 OMIT_DRIVES_IN_STANDBY=1                    # Does not send the last known metrics for drives that are in standby
 DISABLE_DRIVE_DETECTION=0                   # Disable drive detection using smartctl. Only enabled if devices to monitor are supplied as arguments
 declare -A DRIVES                           # Associative array for detected drives, mapping to device type
+declare -A DRIVES_SERIALS                   # Associateive array mapping a drive to its serial number
 declare -A DRIVE_COMMON_TAGS                # Associative array for storing common drive tags
 declare -A METRICS                          # Associative array keeping track of the metrics for each drive
 TEMP_FILE_PREIFX=smartctl_output            # Name prefix of the temporary file smartctl output is stored in. jq seems to be more efficient when reading from file vs. getting the input piped to
@@ -27,7 +28,7 @@ Usage:
   $0 [-h] -d [-p] -n <HOSTNAME> [-f <FREQUENCY>] [-c] [-m <DEVICE>] [-t <DEVICE=TYPE> ] [-v] [-q] [-l <LOG_FILE>] [-s <SMART_TEMP_FILE_NAME>]
 
 Gathers S.M.A.R.T. data about all S.M.A.R.T. capable drives in the system
-and sends them as tagged metrics to a Graphite server.
+and sends them as metrics to a Graphite server.
 
 Options:
   -d DESTINATION            : The destnation IP address or host name under which the Graphite
@@ -51,7 +52,7 @@ Options:
 Example usage:
 $0 -d graphite.mydomain.com -n myhost
 $0 -d graphite.mydomain.com -p 9198 -n myhost -f 600
-$0 -d graphite.mydomain.com -n myhost -f 600 -c -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
+$0 -d graphite.mydomain.com -n myhost -f 600 -o -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
 EOF
 }
 
@@ -169,6 +170,10 @@ function register_drive() {
         local device_type=$(echo "$smart_output" | jq -r '.device.type')
         DRIVES[$drive]=$device_type
     fi
+
+    # store drive serial separately
+    local serial_number=$(echo "$smart_output" | jq -r '.serial_number')
+    DRIVES_SERIALS[$drive]="$serial_number"
 }
 
 ##
@@ -216,6 +221,9 @@ function get_smart_metrics() {
     local device_type=${DRIVES[$drive]}
     # Get common drive tags
     local common_tags=${DRIVE_COMMON_TAGS[$drive]}
+    # Get drive serial
+    local serial_number=${DRIVES_SERIALS[$drive]}
+    local disk_metrics=""
     # Read SMART attributes
     smartctl --json=c -a -n standby -d $device_type $drive  > $SMART_TEMP_FILE_NAME
     # If 0 < exit_status <= 7, an error performing smartctl occurred. However, if messages contains a message that contains the keyword
@@ -226,65 +234,67 @@ function get_smart_metrics() {
                                 | (contains("STANDBY") or contains("SLEEP")) as $sleep 
                                 | if ($exit_status > 0 and $exit_status <= 7 and $sleep) then "standby" elif ($exit_status > 0 and $exit_status <= 7) then "error" else . end ' $SMART_TEMP_FILE_NAME) 
 
+    # Create an Info Metric with all the device's static tags
+    local info_metric=$(echo "smart_disk_info;${common_tags}${METRIC_NAME_VALUE_DELIMITER}1")
+    disk_metrics="${info_metric} ${disk_metrics}"
+
     # Determine power status (drive active or in standby/sleep)
     local smart_power_status=1
     if [ "$exit_code" == "standby" ]; then
         smart_power_status=0
     fi
-    local smart_power_status_metric="$SMART_POWER_STATUS_METRIC_NAME;$common_tags>>$smart_power_status"
+    local smart_power_status_metric=$(echo "${SMART_POWER_STATUS_METRIC_NAME};serial_number={$serial_number}${METRIC_NAME_VALUE_DELIMITER}${smart_power_status}")
+    disk_metrics="${smart_power_status_metric} ${disk_metrics}"
 
     # Exit status between 1 and 7 indicate either Standby or an hard error
     if [ ! -z "$exit_code" ]; then
         if [ "$exit_code" == "error" ]; then
             echo "$exit_code"
-        else
-            # only return smart_power_statu_metric
-            echo "$smart_power_status_metric"
         fi
+        # If the exit code is not "error", it means the disk is in standby.
+        # In that case, we're going to return the metrics we have gathered thus far, that is the info metric and the power status metric.
     # All other exit codes yield SMART attributes
     else
-        local smart_attributes=""
        
         # Get SMART attributes depending on drive type
         case $device_type in
             "nvme")
-                local nvme_attributes=$(jq -r --arg common_tags "$common_tags" --arg delim $METRIC_NAME_VALUE_DELIMITER '
+                local nvme_attributes=$(jq -r --arg serial_number "$serial_number" --arg delim $METRIC_NAME_VALUE_DELIMITER '
                                                 .nvme_smart_health_information_log 
                                                 | keys[] as $key 
-                                                | "smart_nvme_attribute;\($common_tags);value_type=raw;attribute_name=\($key)\($delim)\(.[$key]|numbers)"' $SMART_TEMP_FILE_NAME)
-                local temperature_sensors=$(jq -r --arg common_tags "$common_tags" --arg delim $METRIC_NAME_VALUE_DELIMITER '
+                                                | "smart_nvme_attribute;serial_number=\($serial_number);value_type=raw;attribute_name=\($key)\($delim)\(.[$key]|numbers)"' $SMART_TEMP_FILE_NAME)
+                local temperature_sensors=$(jq -r --arg serial_number "$serial_number" --arg delim $METRIC_NAME_VALUE_DELIMITER '
                                                 .nvme_smart_health_information_log.temperature_sensors 
                                                 | keys[] as $key 
-                                                | "smart_nvme_attribute;\($common_tags);value_type=raw;attribute_name=temperature_sensor_\($key)\($delim)\(.[$key]|numbers)"' $SMART_TEMP_FILE_NAME)
+                                                | "smart_nvme_attribute;serial_number=\($serial_number);value_type=raw;attribute_name=temperature_sensor_\($key)\($delim)\(.[$key]|numbers)"' $SMART_TEMP_FILE_NAME)
                 
                 # Special metrics: Temperature, Power Cycle Count, Power on Time, Smart Status
-                local additional_metrics=$(jq -r --arg common_tags "$common_tags" --arg delim $METRIC_NAME_VALUE_DELIMITER '
-                                                "smart_device_temperature;\($common_tags)\($delim)\(.temperature.current)",
-                                                "smart_power_cycle_count;\($common_tags)\($delim)\(.power_cycle_count)",
-                                                "smart_power_on_time_hours;\($common_tags)\($delim)\(.power_on_time.hours)",
-                                                "smart_status_passed;\($common_tags)\($delim)\(if .smart_status.passed then "1" else "0" end)"' $SMART_TEMP_FILE_NAME)
-                smart_attributes="${nvme_attributes} ${temperature_sensors} ${additional_metrics}"
+                local additional_metrics=$(jq -r --arg serial_number "$serial_number" --arg delim $METRIC_NAME_VALUE_DELIMITER '
+                                                "smart_device_temperature;serial_number=\($serial_number)\($delim)\(.temperature.current)",
+                                                "smart_power_cycle_count;serial_number=\($serial_number)\($delim)\(.power_cycle_count)",
+                                                "smart_power_on_time_hours;serial_number=\($serial_number)\($delim)\(.power_on_time.hours)",
+                                                "smart_status_passed;serial_number=\($serial_number)\($delim)\(if .smart_status.passed then "1" else "0" end)"' $SMART_TEMP_FILE_NAME)
+                disk_metrics="${nvme_attributes} ${temperature_sensors} ${additional_metrics} ${disk_metrics}"
             ;;
             "sat")
-                smart_attributes=$(jq -r --arg common_tags "$common_tags" --arg delim $METRIC_NAME_VALUE_DELIMITER '
+                smart_attributes=$(jq -r --arg serial_number "$serial_number" --arg delim $METRIC_NAME_VALUE_DELIMITER '
                                                 .ata_smart_attributes.table[] 
-                                                | "smart_attribute;\($common_tags);value_type=value;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.value)",
-                                                "smart_attribute;\($common_tags);value_type=raw;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.raw.value)",
-                                                "smart_attribute;\($common_tags);value_type=thresh;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.thresh)",
-                                                "smart_attribute;\($common_tags);value_type=worst;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.worst)"' $SMART_TEMP_FILE_NAME)
+                                                | "smart_attribute;serial_number=\($serial_number);value_type=value;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.value)",
+                                                "smart_attribute;serial_number=\($serial_number);value_type=raw;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.raw.value)",
+                                                "smart_attribute;serial_number=\($serial_number);value_type=thresh;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.thresh)",
+                                                "smart_attribute;serial_number=\($serial_number);value_type=worst;attribute_id=\(.id);attribute_name=\(.name)\($delim)\(.worst)"' $SMART_TEMP_FILE_NAME)
                 # Special metric: Temperature
-                local additional_metrics=$(jq -r --arg common_tags "$common_tags" --arg delim $METRIC_NAME_VALUE_DELIMITER '
-                                                "smart_device_temperature;\($common_tags)\($delim)\(.temperature.current)",
-                                                "smart_power_cycle_count;\($common_tags)\($delim)\(.power_cycle_count)",
-                                                "smart_power_on_time_hours;\($common_tags)\($delim)\(.power_on_time.hours)",
-                                                "smart_status_passed;\($common_tags)\($delim)\(if .smart_status.passed then "1" else "0" end)"' $SMART_TEMP_FILE_NAME)
-                smart_attributes="${smart_attributes} ${additional_metrics}"
+                local additional_metrics=$(jq -r --arg serial_number "$serial_number" --arg delim $METRIC_NAME_VALUE_DELIMITER '
+                                                "smart_device_temperature;serial_number=\($serial_number)\($delim)\(.temperature.current)",
+                                                "smart_power_cycle_count;serial_number=\($serial_number)\($delim)\(.power_cycle_count)",
+                                                "smart_power_on_time_hours;serial_number=\($serial_number)\($delim)\(.power_on_time.hours)",
+                                                "smart_status_passed;serial_number=\($serial_number)\($delim)\(if .smart_status.passed then "1" else "0" end)"' $SMART_TEMP_FILE_NAME)
+                disk_metrics="${smart_attributes} ${additional_metrics} ${disk_metrics}"
             ;;
         esac
-        for smart_attribute in "${smart_attributes}"; do
-            echo $smart_attribute
+        for disk_metric in "${disk_metrics}"; do
+            echo $disk_metric
         done
-        echo $smart_power_status_metric
     fi
     rm $SMART_TEMP_FILE_NAME
 }
