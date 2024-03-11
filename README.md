@@ -42,12 +42,12 @@ One of the main motivations for the development of this script was to gather sta
 
 ## Usage
 ```
-Graphite S.M.A.R.T. exporter version 1.0.0
+Graphite S.M.A.R.T. exporter version 1.1.0
 Usage:
-  ./graphite-smart-exporter.sh [-h] -d [-p] -n <HOSTNAME> [-f <FREQUENCY>] [-c] [-m <DEVICE>] [-t <DEVICE=TYPE> ] [-v] [-q] [-l <LOG_FILE>] [-s <SMART_TEMP_FILE_NAME>]
+  ./graphite_smart_exporter.sh [-h] -d [-p] -n <HOSTNAME> [-f <FREQUENCY>] [-c] [-m <DEVICE>] [-t <DEVICE=TYPE> ] [-v] [-q] [-l <LOG_FILE>] [-s <SMART_TEMP_FILE_NAME>]
 
 Gathers S.M.A.R.T. data about all S.M.A.R.T. capable drives in the system
-and sends them as tagged metrics to a Graphite server.
+and sends them as metrics to a Graphite server.
 
 Options:
   -d DESTINATION            : The destnation IP address or host name under which the Graphite
@@ -56,7 +56,7 @@ Options:
   -n HOSTNAME               : The host name to set for the metrics' 'instance' tag.
   -f FREQUENCY              : Frequency metrics are gathered and sent to Graphite with in seconds
                               (default: 300)
-  -l                        : Name of the log file to log into. File logging is only enabled if a file name is provided. (default: empty)
+  -l LOG_FILE               : Name of the log file to log into. File logging is only enabled if a file name is provided. (default: empty)
   -c                        : Continue sending last known/stale data if a drive is in standby/spun down. If a drive is spun down, S.M.A.R.T. attributes 
                               cannot be read without waking it up. If this option is set, the script continues to send the last known S.M.A.R.T. 
                               metrics for a drive that is spun down to prevent gaps in data.
@@ -69,9 +69,9 @@ Options:
   -v                        : Verbose mode. Prints additional information during execution. File logging is only enabled in verbose mode. Can not be set if -q is set.
   -h                        : Print this help message.
 Example usage:
-./graphite-smart-exporter.sh -d graphite.mydomain.com -n myhost
-./graphite-smart-exporter.sh -d graphite.mydomain.com -p 9198 -n myhost -f 600
-./graphite-smart-exporter.sh -d graphite.mydomain.com -n myhost -f 600 -c -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
+./graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost
+./graphite_smart_exporter.sh -d graphite.mydomain.com -p 9198 -n myhost -f 600
+./graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost -f 600 -o -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
 ```
 
 ## Set up script to run at TrueNAS startup with custom frequency
@@ -79,7 +79,7 @@ To automatically run the script after startup, use TrueNAS' [Init/Shutdown Scrip
 Download the script onto your machine. In your TrueNAS UI, navigate to `System Settings -> Advanced -> Init/Shutdown Scripts` and create a new script with the following settings:
  - __Description:__ `Graphite SMART Exporter`
  - __Type:__ `Command`
- - __Command:__ `sudo /path/to/script/graphite-smart-exporter.sh -d graphite.mydomain.com -n myhost -f 60`
+ - __Command:__ `sudo /path/to/script/graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost -f 60`
  - __When:__ `Post Init`
 
 ![Init Script Settings](images/init_script_setup.png)
@@ -97,6 +97,7 @@ See [graphite_export.md](example_data/graphite_export.md) for a sample of this s
 The script will export the following metrics:
 | Metric Name                |  Device Types | Description   |
 | :--------------------------| :----------- | :------------ |
+| `smart_disk_info`          | all          | Info metric with the sole purpose to provide tags to be joined to actual metrics using the serial number; has a static value of `1` |
 | `smart_attribute`          | `sat`        | Standard ATA S.M.A.R.T. attribute | 
 | `smart_nvme_attribute`     | `nvme`       | NVME S.M.A.R.T Health Information |
 | `smart_device_temperature` | all          | Device Temperature in °C |
@@ -105,8 +106,9 @@ The script will export the following metrics:
 | `smart_power_status`       | all          | Indicator whether the device is active or in standby/spun down |
 | `smart_status_passed`      | all          | Indicating whether the latest S.M.A.R.T. test has passed |
 
-The following tags/labels are added to the metrics:
-### Common Tags
+
+### Disk Info Tags
+The following tags/labels are added to the `smart_disk_info` info metric:
 | Tag Name                   | Description   |
 | :--------------------------| :------------ |
 | `model_name`               | The device's model name (if present), e.g. `HGST_HUH721010ALE600` | 
@@ -118,15 +120,21 @@ The following tags/labels are added to the metrics:
 | `device_type`              | The device type, e.g. `sat` |
 | `instance`                 | The host name passed to the script using `-n` |  
 
+## Common Tags
+All other metrics have the following common tags:
+| Tag Name                   | Description   |
+| :--------------------------| :------------ |
+| `serial_number`            | The device's serial number, e.g. `1EHXXXXX`; can be used to join to `smart_disk_info` metric for additional tags |
+
 ### NVME Specific Tags
-`smart_nvme_attribute` metrics have these additional tags:
+`smart_nvme_attribute` metrics have these additional tags to the [common tags](#common-tags):
 | Tag Name                   | Description   |
 | :--------------------------| :------------ |
 | `value_type`               | Fixed to `raw` | 
 | `attribute_name`           | Name of the reported NVME Health Information, e.g. `available_spare` |
 
 ### SAT Specific Tags
-`smart_attribute` metrics have these additional tags:
+`smart_attribute` metrics have these additional tags to the [common tags](#common-tags):
 | Tag Name                   | Description   |
 | :--------------------------| :------------ |
 | `value_type`               | One of `value`, `worst`, `thresh` or `raw` | 
@@ -153,7 +161,7 @@ The script offers the argument `-c`. If that argument is set, it will continue t
 By default, the script will scan for all S.M.A.R.T. capable device in the system at startup and send metrics for all these devices. If only a specific subset of devices should be monitored, these devices may be passed to the script with the argument `-m`, specifying the argument once per device to monitor.  
 The following example will only monitor devices `/dev/sda` and `/dev/sdc` and will not scan for other devices:
 ```bash
-./graphite-smart-exporter.sh -d graphite.mydomain.com -n myhost -m /dev/sda -m /dev/sdc
+./graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost -m /dev/sda -m /dev/sdc
 ```
 
 ## Manually specify device types
@@ -162,7 +170,7 @@ The following example will only monitor devices `/dev/sda` and `/dev/sdc` and wi
 To manually force the script to use a specific device type for a certain device, specify it using the arugment `-t` in the form `<device_name>=<type>`, once per device.  
 The following example will only monitor devices `/dev/sda` and `/dev/sdc`, but force `/dev/sdc` to be treated as `sat` type device:
 ```bash
-./graphite-smart-exporter.sh -d graphite.mydomain.com -n myhost -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
+./graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
 ```
 
 Note that specifying `-t` alone without `-m` will not disable scanning for devices, but will honor the device type for the specified devices.
