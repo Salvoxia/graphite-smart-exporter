@@ -209,9 +209,10 @@ function get_drives() {
 # $1 The drive device ID to get SMART attributes for, e.g. /dev/sda
 # 
 # Returns
-# A list of delimiter-separated (refer to $METRIC_NAME_VALUE_DELIMITER) SMART metrics with name and complete list of Graphite tags, e.g.
-# smart_attribute;model_name=HGST_HUH721010ALE600;model_family=HGST_Ultrastar_He10;serial_number=1XXXXZJZ;firmware_version=LHGNT384;user_capacity_bytes=10000831348736;device_name=sda;device_type=sat;instance=samstorage.local.salvoxia.de;value_type=thresh;attribute_id=198;attribute_name=Offline_Uncorrectable>>0
-# OR smart_power_status;model_name=HGST_HUH721010ALE600;model_family=HGST_Ultrastar_He10;serial_number=1XXXXZJZ;firmware_version=LHGNT384;user_capacity_bytes=10000831348736;device_name=sda;device_type=sat;instance=samstorage.local.salvoxia.de>>0 if the device is in standy and attributes could not be retrieved
+# A list of delimiter-separated (refer to $METRIC_NAME_VALUE_DELIMITER) SMART metrics with name tags. The smart_disk_info and smart_power_status metrics are always returned (if 
+# no smartctl error occurred). Example:
+# smart_status_passed;serial_number=2JHXXXXX>>1 smart_power_status;serial_number=2JHXXXXX>>1 smart_disk_info;model_name=WDC__WUH721818ALE6L4;model_family=Western_Digital_Ultrastar_DC_HC550;serial_number=2JHXXXXX;firmware_version=PCGNW680;user_capacity_bytes=18000207937536;device_name=sda;device_type=sat;instance=myhost.mydomain.com>>1
+# OR smart_power_status;serial_number=2JHXXXXX>>1 smart_disk_info;model_name=WDC__WUH721818ALE6L4;model_family=Western_Digital_Ultrastar_DC_HC550;serial_number=2JHXXXXX;firmware_version=PCGNW680;user_capacity_bytes=18000207937536;device_name=sda;device_type=sat;instance=myhost.mydomain.com>>1 if the device is in standy and attributes could not be retrieved
 # OR "error" on any other error returned by smartctl
 ##
 function get_smart_metrics() {
