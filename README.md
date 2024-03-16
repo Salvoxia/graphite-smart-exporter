@@ -185,3 +185,6 @@ The script uses `logfmt` as a logging format and supports normal logging to cons
 
 Note that `-v` and `-q` cannot be set at the same time.
 
+export PATH=/opt/sbin:/opt/bin:$PATH
+BASEDIR=$(dirname "$0")
+bash $BASEDIR/graphite_smart_exporter.sh -v -d graphite.local.salvoxia.de -p 9109 -n samvault.local.salvoxia.de -s smart_output2.json -f 60 -l graphite_smart_exporter.log -t /dev/sda=sat -t /dev/sdb=sat

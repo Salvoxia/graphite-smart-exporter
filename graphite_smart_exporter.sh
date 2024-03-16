@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.1.0
+VERSION=1.1.1
 DESTINATION=                                # The destination where the Graphite server is reachable
 PORT=2003                                   # The port the Graphite server listens on for the plaintext protocol
 FREQUENCY=300                               # The frequency data is gathered and sent to graphite in
@@ -293,6 +293,8 @@ function get_smart_metrics() {
                 disk_metrics="${smart_attributes} ${additional_metrics} ${disk_metrics}"
             ;;
         esac
+    fi
+    if [ "$exit_code" != "error" ]; then
         for disk_metric in "${disk_metrics}"; do
             echo $disk_metric
         done
