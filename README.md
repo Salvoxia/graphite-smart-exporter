@@ -144,17 +144,17 @@ All other metrics have the following common tags:
 | `attribute_id`             | Unique ID of the S.M.A.R.T. attribute, e.g. `4` |
 
 
-## Omit Device Name from Info Metric
-If the device names change between reboots or if devices are added to the system, this will cause multiple time series to be created due to the now differing `device_name` tag. To avoid this, start the script specifying the `-o` flag, which will cause the `device_name` tag to be omitted from the `smart_disk_info` metric.
-If `device_name` is volatile, it is of limited value anyway.
-
-
 ### Limitations for tag values
 The [Graphite Documentation on tagged metrics](https://graphite.readthedocs.io/en/latest/tags.html) reads the following about tag values: 
 > Tag values must also have a length >= 1, they may contain any ascii characters except  `;` and the first character must not be `~`.
 
 For values that might not always exist (such as `model_name` or `model_family`) that means that the whole tag cannot be added if the value is empty.  
 Even though the definition for allowed tag value characters implies that a whitespace is allowed, whitespaces in tag values seem to break some Graphite servers such as the Prometheus Graphite Exporter. This is why this script will replace blanks ` ` in tag values with underscores `_`.
+
+## Omit Device Name from Info Metric
+If the device names change between reboots or if devices are added to the system, this will cause multiple time series to be created due to the now differing `device_name` tag. To avoid this, start the script specifying the `-o` flag, which will cause the `device_name` tag to be omitted from the `smart_disk_info` metric.
+If `device_name` is volatile, it is of limited value anyway.
+
 
 ## Continue to send last known metrics for devices in STANDBY
 
@@ -164,7 +164,7 @@ The script offers the argument `-c`. If that argument is set, it will continue t
 ⚠️ Be aware that this has the side effect of continuous metrics such as `smart_device_temp` or `smart_power_on_hours` to show sudden jumps in graphs when the updated values are sent after the device has woken up again.
 
 
-## Manually specifying devices to monitor
+## Manually specify devices to monitor
 
 By default, the script will scan for all S.M.A.R.T. capable device in the system at startup and send metrics for all these devices. If only a specific subset of devices should be monitored, these devices may be passed to the script with the argument `-m`, specifying the argument once per device to monitor.  
 The following example will only monitor devices `/dev/sda` and `/dev/sdc` and will not scan for other devices:
@@ -172,7 +172,7 @@ The following example will only monitor devices `/dev/sda` and `/dev/sdc` and wi
 ./graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost -m /dev/sda -m /dev/sdc
 ```
 
-## Manually specifying device types
+## Manually specify device types
 
 `smartctl` will try to guess the correct device type when querying a specific device. However, it might not get it right for all devices, which might result in wrong/missing output.  
 To manually force the script to use a specific device type for a certain device, specify it using the arugment `-t` in the form `<device_name>=<type>`, once per device.  
