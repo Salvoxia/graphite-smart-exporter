@@ -42,7 +42,7 @@ One of the main motivations for the development of this script was to gather sta
 
 ## Usage
 ```
-Graphite S.M.A.R.T. exporter version 1.1.0
+Graphite S.M.A.R.T. exporter version 1.1.2
 Usage:
   ./graphite_smart_exporter.sh [-h] -d [-p] -n <HOSTNAME> [-f <FREQUENCY>] [-c] [-m <DEVICE>] [-t <DEVICE=TYPE> ] [-v] [-q] [-l <LOG_FILE>] [-s <SMART_TEMP_FILE_NAME>]
 
@@ -65,6 +65,7 @@ Options:
   -t DEVICE=TYPE            : Manually specify the device type for a device. Use this if smartctl device type autodetection does not work for your case. Does NOT disable device discovery. Example: -t /dev/sda=nvme
   -s SMART_TEMP_FILE_NAME   : Name of the temp file the S.M.A.R.T. output is written to during each cycle the script is running.
                               Explicitly set if you plan on running multiple instances of this script to prevent collisions. (default: smart_output.json)
+  -o                        : Omit device name tag from info metric. If you're dealing with a system that changes device names frequently, set this flag to avoid multiple time series after the device changed name.
   -q                        : Quiet mode. Outputs are suppressed set. Can not be set if -v is set.
   -v                        : Verbose mode. Prints additional information during execution. File logging is only enabled in verbose mode. Can not be set if -q is set.
   -h                        : Print this help message.
@@ -116,7 +117,7 @@ The following tags/labels are added to the `smart_disk_info` info metric:
 | `serial_number`            | The device's serial number, e.g. `1EHXXXXX`; can be used make sure a certain metric always refers to the same phyiscal device if logical device names change during reboots |
 | `firmware_version`         | The firmware version reported by the device, e.g. `LHGNT384`|
 | `user_capacity_bytes`      | The drive's capacity in bytes, e.g. `10000831348736` |
-| `device_name`              | The shortened logical device name, e.g. `sda`; might change during reboots |
+| `device_name`              | The shortened logical device name, e.g. `sda`; might change during reboots; not presetn it `-o` argument is set |
 | `device_type`              | The device type, e.g. `sat` |
 | `instance`                 | The host name passed to the script using `-n` |  
 
@@ -141,6 +142,12 @@ All other metrics have the following common tags:
 | `attribute_name`           | Name of the reported ATA S.M.A.R.T. attribute, e.g. `Start_Stop_Count` |
 | `attribute_id`             | Unique ID of the S.M.A.R.T. attribute, e.g. `4` |
 
+
+## Omit Device Name from Info Metric
+If the device names change between reboots or if devices are added to the system, this will cause multiple time series to be created due to the now differing `device_name` tag. To avoid this, start the script specifying the `-o` flag, which will cause the `device_name` tag to be omitted from the `smart_disk_info` metric.
+If `device_name` is volatile, it is of limited value anyway.
+
+
 ### Limitations for tag values
 The [Graphite Documentation on tagged metrics](https://graphite.readthedocs.io/en/latest/tags.html) reads the following about tag values: 
 > Tag values must also have a length >= 1, they may contain any ascii characters except  `;` and the first character must not be `~`.
@@ -164,7 +171,7 @@ The following example will only monitor devices `/dev/sda` and `/dev/sdc` and wi
 ./graphite_smart_exporter.sh -d graphite.mydomain.com -n myhost -m /dev/sda -m /dev/sdc
 ```
 
-## Manually specify device types
+## Manually specifying device types
 
 `smartctl` will try to guess the correct device type when querying a specific device. However, it might not get it right for all devices, which might result in wrong/missing output.  
 To manually force the script to use a specific device type for a certain device, specify it using the arugment `-t` in the form `<device_name>=<type>`, once per device.  
