@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.1.1
+VERSION=1.1.2
 DESTINATION=                                # The destination where the Graphite server is reachable
 PORT=2003                                   # The port the Graphite server listens on for the plaintext protocol
 FREQUENCY=300                               # The frequency data is gathered and sent to graphite in
@@ -8,6 +8,7 @@ VERBOSE=0                                   # Default verbosity level
 QUIET=0                                     # Does not write any output if set
 OMIT_DRIVES_IN_STANDBY=1                    # Does not send the last known metrics for drives that are in standby
 DISABLE_DRIVE_DETECTION=0                   # Disable drive detection using smartctl. Only enabled if devices to monitor are supplied as arguments
+OMIT_DEVICE_NAME_FROM_INFO_METRIC=0         # Does not include the device_name tag in the smart_disk_info metric if set to 1. 
 declare -A DRIVES                           # Associative array for detected drives, mapping to device type
 declare -A DRIVES_SERIALS                   # Associateive array mapping a drive to its serial number
 declare -A DRIVE_COMMON_TAGS                # Associative array for storing common drive tags
@@ -46,6 +47,7 @@ Options:
   -t DEVICE=TYPE            : Manually specify the device type for a device. Use this if smartctl device type autodetection does not work for your case. Does NOT disable device discovery. Example: -t /dev/sda=nvme
   -s SMART_TEMP_FILE_NAME   : Name of the temp file the S.M.A.R.T. output is written to during each cycle the script is running.
                               Explicitly set if you plan on running multiple instances of this script to prevent collisions. (default: smart_output.json)
+  -o                        : Omit device name tag from info metric. If you're dealing with a system that changes device names frequently, set this flag to avoid multiple time series after the device changed name.
   -q                        : Quiet mode. Outputs are suppressed set. Can not be set if -v is set.
   -v                        : Verbose mode. Prints additional information during execution. File logging is only enabled in verbose mode. Can not be set if -q is set.
   -h                        : Print this help message.
@@ -147,7 +149,9 @@ function register_drive() {
     fi
 
     local smart_output=$(smartctl --json=c -a $device_type_argument $drive)
-    local common_tags=$(echo "$smart_output" | jq -r --arg HOSTNAME $HOSTNAME '
+    local common_tags=""
+    if [ $OMIT_DEVICE_NAME_FROM_INFO_METRIC -eq 0 ]; then
+        common_tags=$(echo "$smart_output" | jq -r --arg HOSTNAME $HOSTNAME '
                               (.model_family // "" | gsub(" "; "_")) as $model_family
                             | (.model_name // "" | gsub(" "; "_")) as $model_name
                             | (.serial_number | tostring) as $serial_number
@@ -163,6 +167,22 @@ function register_drive() {
                             + "device_name=\($device_name);"
                             + "device_type=\($device_type);"
                             + "instance=\($HOSTNAME)"')
+    else
+        common_tags=$(echo "$smart_output" | jq -r --arg HOSTNAME $HOSTNAME '
+                              (.model_family // "" | gsub(" "; "_")) as $model_family
+                            | (.model_name // "" | gsub(" "; "_")) as $model_name
+                            | (.serial_number | tostring) as $serial_number
+                            | .firmware_version as $firmware_version
+                            | (.user_capacity.bytes | tostring) as $user_capacity_bytes
+                            | .device.type as $device_type
+                            | if $model_name != "" then "model_name=\($model_name);" else "" end 
+                            + if $model_family != "" then "model_family=\($model_family);" else "" end
+                            + "serial_number=\($serial_number);"
+                            + "firmware_version=\($firmware_version);"
+                            + "user_capacity_bytes=\($user_capacity_bytes);"
+                            + "device_type=\($device_type);"
+                            + "instance=\($HOSTNAME)"')
+    fi
     DRIVE_COMMON_TAGS[$drive]="$common_tags"
 
     # detect device type if not provided by command line argument
@@ -357,6 +377,7 @@ function main() {
     log_verbose "Verbose: $VERBOSE"
     log_verbose "Disable drive detection: $DISABLE_DRIVE_DETECTION"
     log_verbose "Manually specified drives: $(get_drives)"
+    log_verbose "Omit device name from info metric: $OMIT_DEVICE_NAME_FROM_INFO_METRIC"
 
     local smart_power_status_regex="$SMART_POWER_STATUS_METRIC_NAME(;\S+=\S+)+>>(0|1)"
 
@@ -408,7 +429,7 @@ function main() {
 }
 
 # Parse arguments
-while getopts "hd:p:n:vqf:cm:t:l:s:" opt; do
+while getopts "hd:p:n:vqof:cm:t:l:s:" opt; do
   case ${opt} in
     d ) DESTINATION=${OPTARG}
       ;;
@@ -428,6 +449,8 @@ while getopts "hd:p:n:vqf:cm:t:l:s:" opt; do
     s ) SMART_TEMP_FILE_NAME=${OPTARG}
       ;;
     t ) set_manual_device_type ${OPTARG}
+      ;;
+    o ) OMIT_DEVICE_NAME_FROM_INFO_METRIC=1
       ;;
     q ) QUIET=1
       ;;
