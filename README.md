@@ -13,7 +13,7 @@ Other solutions to get S.M.A.R.T. metrics from a system exist, such as [smartctl
 __Requirements:__
  - [bash](https://www.gnu.org/software/bash/)
  - [smartctl 7.0](https://www.smartmontools.org/)
- - [jq](https://jqlang.github.io/jq/) (Developed and tested with v1.6, might work with previous versions)
+ - [jq](https://jqlang.github.io/jq/) with oniguruma library (Developed and tested with v1.6, works with v1.5 as well)
 
 This script uses `smartctl`'s json output mode, which was introduced with version `7.0`, hence the requirement.  
 
@@ -22,6 +22,7 @@ Even though this script was developed with TrueNAS SCALE in mind, and this docum
 Tested on:
   - TrueNAS SCALE 23.10.1
   - Debian 12.4 Bookworm 
+  - Synology DSM 7.1 (with manually installed smartctl v7.4 via [Entware](https://github.com/Entware/Entware))
 
 Might/should work on TrueNAS CORE, test results are welcome!
 
@@ -85,7 +86,7 @@ Download the script onto your machine. In your TrueNAS UI, navigate to `System S
 
 ![Init Script Settings](images/init_script_setup.png)
 
-Since `smartctl` is only available for root, the script must be executed with `sudo`.  
+Since `smartctl` is only available for root, the script must be executed with `sudo`.  ö
 The command above will send S.M.A.R.T. metrics to your Graphite instance every 60 seconds.
 
 ## Exported Metrics and Tags
