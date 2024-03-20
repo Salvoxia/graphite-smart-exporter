@@ -14,6 +14,7 @@ __Requirements:__
  - [bash](https://www.gnu.org/software/bash/)
  - [smartctl 7.0](https://www.smartmontools.org/)
  - [jq](https://jqlang.github.io/jq/) with oniguruma library (Developed and tested with v1.6, works with v1.5 as well)
+ - [netcat](https://nc110.sourceforge.io/)
 
 This script uses `smartctl`'s json output mode, which was introduced with version `7.0`, hence the requirement.  
 
@@ -22,7 +23,7 @@ Even though this script was developed with TrueNAS SCALE in mind, and this docum
 Tested on:
   - TrueNAS SCALE 23.10.1
   - Debian 12.4 Bookworm 
-  - Synology DSM 7.1 (with manually installed smartctl v7.4 via [Entware](https://github.com/Entware/Entware))
+  - Synology DSM 7.1 (with manually installed smartctl v7.4 and netcat via [Entware](https://github.com/Entware/Entware))
 
 Might/should work on TrueNAS CORE, test results are welcome!
 
