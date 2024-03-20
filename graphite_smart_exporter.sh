@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.1.2
+VERSION=1.1.3
 DESTINATION=                                # The destination where the Graphite server is reachable
 PORT=2003                                   # The port the Graphite server listens on for the plaintext protocol
 FREQUENCY=300                               # The frequency data is gathered and sent to graphite in
@@ -9,6 +9,7 @@ QUIET=0                                     # Does not write any output if set
 OMIT_DRIVES_IN_STANDBY=1                    # Does not send the last known metrics for drives that are in standby
 DISABLE_DRIVE_DETECTION=0                   # Disable drive detection using smartctl. Only enabled if devices to monitor are supplied as arguments
 OMIT_DEVICE_NAME_FROM_INFO_METRIC=0         # Does not include the device_name tag in the smart_disk_info metric if set to 1. 
+NETCAT_FLAVOR=                              # Stores flavor of netcat implemenation, should be GNU, OPENBSD or TRADITIONAL
 declare -A DRIVES                           # Associative array for detected drives, mapping to device type
 declare -A DRIVES_SERIALS                   # Associateive array mapping a drive to its serial number
 declare -A DRIVE_COMMON_TAGS                # Associative array for storing common drive tags
@@ -56,6 +57,30 @@ $0 -d graphite.mydomain.com -n myhost
 $0 -d graphite.mydomain.com -p 9198 -n myhost -f 600
 $0 -d graphite.mydomain.com -n myhost -f 600 -o -m /dev/sda -m /dev/sdc -t /dev/sdc=sat
 EOF
+}
+
+##
+# Determines which tool to access disk parameters is available. This
+# differentiates between TrueNAS Core and TrueNAS SCALE.
+#
+# Return: Command to use to access disk parameters
+#
+##
+function detect_netcat_flavor() {
+    local nc_info=$( nc -h 2>&1 )
+    if [[ ! -z $(echo $nc_info | grep "GNU" ) ]]; then
+        NETCAT_FLAVOR="GNU"
+        return
+    elif [[ ! -z $(echo $nc_info | grep "OpenBSD") ]]; then
+        NETCAT_FLAVOR="OPENBSD"
+        return
+    elif [[ ! -z $(echo $nc_info | grep "c shell commands") ]]; then
+        NETCAT_FLAVOR="TRADITIONAL"
+        return
+    fi
+
+    log_error "No supported netcat utility found."
+    exit 1
 }
 
 ##
@@ -329,9 +354,13 @@ function get_smart_metrics() {
 function send_metrics {
     # get current time in Unix timestamp format, save in $time
     time=$(/bin/date +%s)
-    local verbose=""
+    local netcat_args="-w 2"
     if [ $VERBOSE -eq 1 ]; then
-        verbose="-v"
+        netcat_args="-v $netcat_args"
+    fi
+    # The GNU flavor requires the -c argument to terminate after sending the payload
+    if [ "$NETCAT_FLAVOR" = "GNU" ]; then
+        netcat_args="-c $netcat_args"
     fi
 
     # only send if there are actually any metrics available
@@ -345,7 +374,7 @@ function send_metrics {
                     echo "${formatted_metric} ${time}"
                 done
             fi
-        done | nc "${DESTINATION}" "${PORT}" -w2 $verbose
+        done | nc "${DESTINATION}" "${PORT}" $netcat_args
     fi
 }
 
@@ -366,6 +395,8 @@ function main() {
         exit 1
     fi
 
+    detect_netcat_flavor
+
     # Replace dots '.' in hostname with underscores
     HOSTNAME_METRIC=${HOSTNAME//./_}
     HOSTNAME_METRIC=$HOSTNAME
@@ -378,6 +409,7 @@ function main() {
     log_verbose "Disable drive detection: $DISABLE_DRIVE_DETECTION"
     log_verbose "Manually specified drives: $(get_drives)"
     log_verbose "Omit device name from info metric: $OMIT_DEVICE_NAME_FROM_INFO_METRIC"
+    log_verbose "Detected netcat utility flavor: $NETCAT_FLAVOR"
 
     local smart_power_status_regex="$SMART_POWER_STATUS_METRIC_NAME(;\S+=\S+)+>>(0|1)"
 
