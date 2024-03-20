@@ -123,7 +123,7 @@ function log_error() {
 function set_manual_device_type() {
     local drive=$(cut -d'=' -f1 <<<"$1")
     local device_type=$(cut -d'=' -f2 <<<"$1")
-    if [ -z "$drive" || -z "$device_type" ]; then
+    if [[ -z "$drive" || -z "$device_type" ]]; then
         print_usage
     fi
     DRIVES[$drive]=$device_type
