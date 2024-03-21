@@ -84,6 +84,30 @@ function detect_netcat_flavor() {
 }
 
 ##
+# Checks whether all prerequisites for this script to work correctly are fulfilled.
+##
+function check_prerequisites() {
+
+    # check smartctl
+    if [ -z $(which smartctl) ]; then
+        log_error "smartctl not found, aborting."
+        exit 1
+    fi
+    # check if smartctl understands --json
+    local smartctl_help=$(smartctl --json=c -h 2>&1)
+    if [[ ! -z $(echo "$smartctl_help" | grep "UNRECOGNIZED OPTION") ]]; then
+        log_error "smartctl does not support json formatted output, aborting. smartctl 7.0 is required at minimum!"
+        exit 1
+    fi
+
+    if [ -z $(which jq) ]; then
+        log_error "jq not found, aborting."
+        exit 1
+    fi
+}
+
+
+##
 # Writes argument $1 to stdout if $QUIET is not set
 #
 # Arguments:
@@ -459,6 +483,8 @@ function main() {
         sleep $FREQUENCY
     done
 }
+
+check_prerequisites
 
 # Parse arguments
 while getopts "hd:p:n:vqof:cm:t:l:s:" opt; do
