@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.1.3
+VERSION=1.1.4
 DESTINATION=                                # The destination where the Graphite server is reachable
 PORT=2003                                   # The port the Graphite server listens on for the plaintext protocol
 FREQUENCY=300                               # The frequency data is gathered and sent to graphite in

@@ -45,7 +45,7 @@ One of the main motivations for the development of this script was to gather sta
 
 ## Usage
 ```
-Graphite S.M.A.R.T. exporter version 1.1.2
+Graphite S.M.A.R.T. exporter version 1.1.4
 Usage:
   ./graphite_smart_exporter.sh [-h] -d [-p] -n <HOSTNAME> [-f <FREQUENCY>] [-c] [-m <DEVICE>] [-t <DEVICE=TYPE> ] [-v] [-q] [-l <LOG_FILE>] [-s <SMART_TEMP_FILE_NAME>]
 
