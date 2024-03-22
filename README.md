@@ -32,6 +32,7 @@ Might/should work on TrueNAS CORE, test results are welcome!
   - [Tags to make metrics resilient against device name changes after reboots](#exported-metrics-and-tags)
   - [Continue to send last known metrics for devices in STANDBY](#continue-to-send-last-known-metrics-for-devices-in-standby)
   - [Special metrics for device's power state](#exported-metrics-and-tags)
+  - [ZFS Support: Provides pool name in info metric](#zfs-support)
   - [Manually specify devices to monitor](#manually-specifying-devices-to-monitor)
   - [Manually specify device types](#manually-specify-device-types)
   - [Logging](#logging)
