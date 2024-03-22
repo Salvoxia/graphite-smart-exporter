@@ -122,6 +122,7 @@ The following tags/labels are added to the `smart_disk_info` info metric:
 | `device_name`              | The shortened logical device name, e.g. `sda`; might change during reboots; not presetn it `-o` argument is set |
 | `device_type`              | The device type, e.g. `sat` |
 | `instance`                 | The host name passed to the script using `-n` |  
+| `zfs_pool`                 | If the disk is part of a ZFS pool, this tag contains the name of that pool |
 
 ## Common Tags
 All other metrics have the following common tags:
@@ -155,6 +156,10 @@ Even though the definition for allowed tag value characters implies that a white
 ## Omit Device Name from Info Metric
 If the device names change between reboots or if devices are added to the system, this will cause multiple time series to be created due to the now differing `device_name` tag. To avoid this, start the script specifying the `-o` flag, which will cause the `device_name` tag to be omitted from the `smart_disk_info` metric.
 If `device_name` is volatile, it is of limited value anyway.
+
+## ZFS Support
+Since the script was originally designed to be run on a TrueNAS based system, information about ZFS pool assignment for each disk is a logical supplement for the disk's info metrics.
+If the script detects ZFS on the system, it will try to find the ZFS pool each monitored disk is assigned to and add a `zfs_pool` tag to the `smart_disk_info` metric. 
 
 
 ## Continue to send last known metrics for devices in STANDBY
