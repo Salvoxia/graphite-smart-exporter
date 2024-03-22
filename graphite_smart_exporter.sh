@@ -246,6 +246,42 @@ function register_drive() {
 }
 
 ##
+# Checks if the system has a zfs file system. If so, gathers all
+# disks of all pools and adds that information to the disk's common tags.
+#
+##
+function detect_drives_zpool() {
+
+    # check for zfs
+    if [[ -z $(which zpool) ]]; then
+        return
+    fi
+    log_verbose "Detected ZFS, trying to find pools for disks"
+    # Auto detect available pools
+    local poolnames=$(zpool list -H -o name)
+
+    # Index disks in detected pools
+    for poolname in $poolnames; do
+        local partitions
+        # this command lists the full path to the partition devices contained in the poll
+        if ! partitions=$(zpool list -LPHv "$poolname" | grep -Eo "(\/\w+\/\w+)" ); then
+            continue;
+        fi
+
+        local zpool_tag="zfs_pool=${poolname}"
+        for partition in $partitions; do
+            for drive in $(get_drives); do
+                if [[ ! -z $(echo ${partition} | grep "${drive}") ]]; then
+                    DRIVE_COMMON_TAGS[$drive]="${zpool_tag};${DRIVE_COMMON_TAGS[$drive]}"
+                    log_verbose "Disk ${drive} is part of ZFS pool ${poolname}"
+                    break
+                fi
+            done
+        done
+    done
+}
+
+##
 # Detects all connected drives using plain iostat method and whether they are
 # ATA or SCSI drives. Drives listed in $IGNORE_DRIVES will be excluded.
 #
@@ -442,7 +478,9 @@ function main() {
         detect_drives_smart
     fi
 
-    for drive in ${!DRIVES[@]}; do
+    detect_drives_zpool
+
+    for drive in $(get_drives); do
         log_verbose "Using drive ${drive} as ${DRIVES[$drive]} device"
     done
 
@@ -450,7 +488,7 @@ function main() {
 
     # Drive SMART monitoring loop
     while true; do
-        for drive in "${!DRIVES[@]}"; do
+        for drive in $(get_drives); do
             local SMART_METRICS=$(get_smart_metrics $drive)
             local power_status_metric=$(echo ${SMART_METRICS} | grep -Eo "${smart_power_status_regex}")
             # If the power status metrics ends with 0, the device is in standby
