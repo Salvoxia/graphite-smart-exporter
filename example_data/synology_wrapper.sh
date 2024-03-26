@@ -8,7 +8,7 @@ export PATH=/opt/sbin:/opt/bin:$PATH
 # Prevent error
 # ERROR: ld.so: object 'openhook.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
 # when getting started from Task Planner
-export LD_PRELOAD=/usr/lib/openhook.so:/usr/lib/libapparmor.so.1
+export LD_PRELOAD=
 # Locate current script, we assume the exporter is sitting in the same folder
 BASEDIR=$(dirname "$0")
 # Run exporter, passing all arguments passed to the wrapper
