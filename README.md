@@ -203,3 +203,34 @@ Note that `-v` and `-q` cannot be set at the same time.
 export PATH=/opt/sbin:/opt/bin:$PATH
 BASEDIR=$(dirname "$0")
 bash $BASEDIR/graphite_smart_exporter.sh -v -d graphite.local.salvoxia.de -p 9109 -n samvault.local.salvoxia.de -s smart_output2.json -f 60 -l graphite_smart_exporter.log -t /dev/sda=sat -t /dev/sdb=sat
+
+
+## Installation on Synology DSM
+
+Synology DSM 7.1 uses an older version of `smartctl` that does not support json formatted output. In order to use Graphite S.M.A.R.T. Exporter, a newer version of `smartctl` must be installed.  
+This can be done using [Entware](https://github.com/Entware/Entware).  
+
+### Guide
+1. Follow the [installation instructions for Entware](https://github.com/Entware/Entware/wiki/Install-on-Synology-NAS)
+2. Install `smartctl` using Entware
+   ```bash
+   sudo opkg install smartctl
+    ```
+3. Copy `graphite_smart_exporter.sh` and `synolgoy_wrapper.sh` to a suitable folder on your Synology NAS
+4. Make `graphite_smart_exporter.sh` and `synolgoy_wrapper.sh` executable
+   ```
+   chmod +x graphite_smart_exporter.sh synolgoy_wrapper.sh
+   ```
+5. Log in to DSM Web interface DSM > Control Panel > Task Scheduler
+    - Create > Triggered Task > User Defined Script
+      - General
+        - Task: Graphite S.M.A.R.T. Exporter
+        - User: root
+        - Event: Boot-up
+        - Pre-task: Entware
+      - Task Settings
+        - Run Command: (see bellow)
+
+   ```
+   /bin/bash /path/to/exporter/synology_wrapper.sh <exporterArgs>
+   ```
